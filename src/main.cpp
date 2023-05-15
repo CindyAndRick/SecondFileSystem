@@ -709,7 +709,7 @@ void *start_routine(void *ptr)
             cout << send_str.str() << endl;
             break;
         }
-        if (api != "" && api != " " && api != "info")
+        if (api != "" && api != " " && api != "help")
         {
             std::stringstream tishi;
             tishi = print_head();
