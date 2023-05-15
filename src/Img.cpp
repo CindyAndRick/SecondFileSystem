@@ -51,7 +51,7 @@ void Img::ReadImg()
     /* ReadImg的本质为建立映射,但出于安全性考虑,先检验文件大小是否正确 */
     struct stat st;
     fstat(this->fd_img, &st);
-    printf("size of c.img:%ld", st.st_size);
+    printf("[info] size of c.img:%ld\n", st.st_size);
 
     char *p = (char *)mmap(NULL, sizeof(SuperBlock) + sizeof(DiskInode) * FileSystem::INODE_ZONE_SIZE * FileSystem::INODE_NUMBER_PER_SECTOR + FileSystem::DATA_ZONE_SIZE * 512, PROT_READ | PROT_WRITE, MAP_SHARED, fd_img, 0);
 

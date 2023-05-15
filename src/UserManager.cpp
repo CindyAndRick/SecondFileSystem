@@ -67,6 +67,7 @@ bool UserManager::Login(string uname)
     strcpy(pusers[i]->u_curdir, "/");
     // 2. 尝试创建家目录
     Kernel::Instance().Sys_Mkdir(uname);
+    printf("[info] home dic created\n");
     // 3. 转到家目录
     pusers[i]->u_error = NOERROR;
     char dirname[512] = {0};
