@@ -1,4 +1,5 @@
 #include <string.h>
+#include <time.h>
 
 #include "../include/FileSystem.h"
 #include "../include/Kernel.h"
@@ -9,12 +10,14 @@ SuperBlock g_sb;
 
 SuperBlock::SuperBlock()
 {
-	// nothing to do here
+	pthread_mutex_init(&this->s_ilock, NULL);
+	pthread_mutex_init(&this->s_flock, NULL);
 }
 
 SuperBlock::~SuperBlock()
 {
-	// nothing to do here
+	pthread_mutex_destroy(&this->s_ilock);
+	pthread_mutex_destroy(&this->s_flock);
 }
 
 /*==============================class FileSystem===================================*/
@@ -31,6 +34,7 @@ FileSystem::~FileSystem()
 void FileSystem::Initialize()
 {
 	this->m_BufferManager = &Kernel::Instance().GetBufferManager();
+	this->updlock = 0;
 }
 
 void FileSystem::LoadSuperBlock()
@@ -50,7 +54,17 @@ void FileSystem::LoadSuperBlock()
 		bufMgr.Brelse(pBuf);
 	}
 
+	if (u.u_error != NOERROR)
+	{
+		printf("[error] FileSystem::LoadSuperBlock: Load SuperBlock error\n");
+	}
+
 	g_sb.s_ronly = 0;
+	time_t cur_time;
+	time(&cur_time);
+	g_sb.s_time = cur_time;
+	pthread_mutex_init(&g_sb.s_ilock, NULL);
+	pthread_mutex_init(&g_sb.s_flock, NULL);
 }
 
 SuperBlock *FileSystem::GetFS()
@@ -72,6 +86,9 @@ void FileSystem::Update()
 		return;
 	}
 
+	pthread_mutex_lock(&sb->s_ilock);
+	pthread_mutex_lock(&sb->s_flock);
+	printf("[info] FileSystem::Update: s_flock s_ilock locked\n");
 	sb->s_fmod = 0;
 	/* 写入SuperBlock最后存访时间 */
 	time_t cur_time;
@@ -97,12 +114,14 @@ void FileSystem::Update()
 		/* 将缓冲区中的数据写到磁盘上 */
 		this->m_BufferManager->Bwrite(pBuf);
 	}
-
+	pthread_mutex_unlock(&sb->s_flock);
+	pthread_mutex_unlock(&sb->s_ilock);
+	printf("[info] FileSystem::Update: s_flock s_ilock unlocked\n");
 	/* 同步修改过的内存Inode到对应外存Inode */
 	g_InodeTable.UpdateInodeTable();
 
 	/* 清除Update()函数锁 */
-	// this->updlock = 0;
+	this->updlock = 0;
 
 	/* 将延迟写的缓存块写到磁盘上 */
 	this->m_BufferManager->Bflush();
@@ -129,6 +148,8 @@ Inode *FileSystem::IAlloc()
 
 	if (sb->s_ninode <= 0)
 	{
+		/* 空闲Inode索引表上锁 */
+		pthread_mutex_lock(&sb->s_ilock);
 		/* 外存Inode编号从0开始，这不同于Unix V6中外存Inode从1开始编号 */
 		ino = -1;
 		/* 依次读入磁盘Inode区中的磁盘块，搜索其中空闲外存Inode，记入空闲Inode索引表 */
@@ -179,6 +200,7 @@ Inode *FileSystem::IAlloc()
 				break;
 			}
 		}
+		pthread_mutex_unlock(&sb->s_ilock);
 		/* 如果在磁盘上没有搜索到任何可用外存Inode，返回NULL */
 		if (sb->s_ninode <= 0)
 		{
@@ -255,6 +277,9 @@ Buf *FileSystem::Alloc()
 	/* 获取SuperBlock对象的内存副本 */
 	sb = this->GetFS();
 
+	pthread_mutex_lock(&sb->s_flock);
+	printf("[info] FileSystem::Alloc: s_flock locked\n");
+
 	/* 从索引表“栈顶”获取空闲磁盘块编号 */
 	blkno = sb->s_free[--sb->s_nfree];
 
@@ -300,6 +325,9 @@ Buf *FileSystem::Alloc()
 	}
 
 	/* 普通情况下成功分配到一空闲磁盘块 */
+	pthread_mutex_unlock(&sb->s_flock);
+	printf("[info] FileSystem::Alloc: s_flock unlocked\n");
+
 	pBuf = this->m_BufferManager->GetBlk(blkno); /* 为该磁盘块申请缓存 */
 	this->m_BufferManager->ClrBuf(pBuf);		 /* 清空缓存中的数据 */
 	sb->s_fmod = 1;								 /* 设置SuperBlock被修改标志 */
@@ -310,7 +338,7 @@ void FileSystem::Free(int blkno)
 {
 	SuperBlock *sb;
 	Buf *pBuf;
-	User &u = Kernel::Instance().GetUser();
+	// User &u = Kernel::Instance().GetUser();
 
 	sb = this->GetFS();
 
@@ -320,6 +348,9 @@ void FileSystem::Free(int blkno)
 	 * 的修改仅进行了一半，就更新到磁盘SuperBlock去
 	 */
 	sb->s_fmod = 1;
+
+	pthread_mutex_lock(&sb->s_flock);
+	printf("[info] FileSystem::Free: s_flock locked\n");
 
 	/*
 	 * 如果先前系统中已经没有空闲盘块，
@@ -355,6 +386,8 @@ void FileSystem::Free(int blkno)
 	}
 	sb->s_free[sb->s_nfree++] = blkno; /* SuperBlock中记录下当前释放盘块号 */
 	sb->s_fmod = 1;
+	pthread_mutex_unlock(&sb->s_flock);
+	printf("[info] FileSystem::Free: s_flock unlocked\n");
 }
 
 bool FileSystem::BadBlock(SuperBlock *spb, int blkno)

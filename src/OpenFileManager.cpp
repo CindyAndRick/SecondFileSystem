@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "OpenFileManager.h"
-#include "Kernel.h"
-#include "INode.h"
+#include "../include/OpenFileManager.h"
+#include "../include/Kernel.h"
+#include "../include/INode.h"
 
 /*==============================class OpenFileTable===================================*/
 /* 系统全局打开文件表对象实例的定义 */
@@ -102,9 +102,9 @@ Inode *InodeTable::IGet(int inumber)
 		{
 			/* 获取指向该inode的指针 */
 			pInode = &(this->m_Inode[index]);
-			/* 如果该内存Inode被上锁，本课设中不存在锁 */
-
-			/* 如果该内存Inode用于连接子文件系统，查找该Inode对应的Mount装配块，本科设中不存在子文件系统 */
+			/* 如果该内存Inode被上锁*/
+			pthread_mutex_lock(&pInode->mutex);
+			/* 如果该内存Inode用于连接子文件系统，查找该Inode对应的Mount装配块*/
 
 			/*
 			 * 程序执行到这里表示：内存Inode高速缓存中找到相应内存Inode，
@@ -192,7 +192,7 @@ void InodeTable::IPut(Inode *pNode)
 		pNode->IUpdate(time(&timestamp));
 
 		/* 解锁内存Inode，并且唤醒等待进程 */
-		// pNode->Prele();
+		pNode->NFrele();
 		/* 清除内存Inode的所有标志位 */
 		pNode->i_flag = 0;
 		/* 这是内存inode空闲的标志之一，另一个是i_count == 0 */
@@ -201,7 +201,7 @@ void InodeTable::IPut(Inode *pNode)
 
 	/* 减少内存Inode的引用计数，唤醒等待进程 */
 	pNode->i_count--;
-	// pNode->Prele();
+	pNode->NFrele();
 }
 
 void InodeTable::UpdateInodeTable()
@@ -212,16 +212,16 @@ void InodeTable::UpdateInodeTable()
 		 * 如果Inode对象没有被上锁，即当前未被其它进程使用，可以同步到外存Inode；
 		 * 并且count不等于0，count == 0意味着该内存Inode未被任何打开文件引用，无需同步。
 		 */
-		if (this->m_Inode[i].i_count != 0) //  (this->m_Inode[i].i_flag & Inode::ILOCK) == 0 &&
+		if ((this->m_Inode[i].i_flag & Inode::ILOCK) == 0 && this->m_Inode[i].i_count != 0)
 		{
 			/* 将内存Inode上锁后同步到外存Inode */
 			// TODO： 是否需要上锁
-			// this->m_Inode[i].i_flag |= Inode::ILOCK;
+			this->m_Inode[i].i_flag |= Inode::ILOCK;
 			time_t timestamp;
 			this->m_Inode[i].IUpdate(time(&timestamp));
 
 			/* 对内存Inode解锁 */
-			// this->m_Inode[i].Prele();
+			this->m_Inode[i].NFrele();
 		}
 	}
 }

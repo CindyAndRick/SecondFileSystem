@@ -59,41 +59,41 @@ public:
 	// 	//EFAULT	= 106
 	// };
 
-	static const int NSIG = 32; /* 信号个数 */
+	// static const int NSIG = 32; /* 信号个数 */
 
 	/* p_sig中接受到的信号定义 */
-	static const int SIGNUL = 0;	 /* No Signal Received */
-	static const int SIGHUP = 1;	 /* Hangup (kill controlling terminal) */
-	static const int SIGINT = 2;	 /* Interrupt from keyboard */
-	static const int SIGQUIT = 3;	 /* Quit from keyboard */
-	static const int SIGILL = 4;	 /* Illegal instrution */
-	static const int SIGTRAP = 5;	 /* Trace trap */
-	static const int SIGABRT = 6;	 /* use abort() API */
-	static const int SIGBUS = 7;	 /* Bus error */
-	static const int SIGFPE = 8;	 /* Floating point exception */
-	static const int SIGKILL = 9;	 /* Kill(can't be caught or ignored) */
-	static const int SIGUSR1 = 10;	 /* User defined signal 1 */
-	static const int SIGSEGV = 11;	 /* Invalid memory segment access */
-	static const int SIGUSR2 = 12;	 /* User defined signal 2 */
-	static const int SIGPIPE = 13;	 /* Write on a pipe with no reader, Broken pipe */
-	static const int SIGALRM = 14;	 /* Alarm clock */
-	static const int SIGTERM = 15;	 /* Termination */
-	static const int SIGSTKFLT = 16; /* Stack fault */
-	static const int SIGCHLD = 17;	 /* Child process has stopped or exited, changed */
-	static const int SIGCONT = 18;	 /* Continue executing, if stopped */
-	static const int SIGSTOP = 19;	 /* Stop executing */
-	static const int SIGTSTP = 20;	 /* Terminal stop signal */
-	static const int SIGTTIN = 21;	 /* Background process trying to read, from TTY */
-	static const int SIGTTOU = 22;	 /* Background process trying to write, to TTY */
-	static const int SIGURG = 23;	 /* Urgent condition on socket */
-	static const int SIGXCPU = 24;	 /* CPU limit exceeded */
-	static const int SIGXFSZ = 25;	 /* File size limit exceeded */
-	static const int SIGVTALRM = 26; /* Virtual alarm clock */
-	static const int SIGPROF = 27;	 /* Profiling alarm clock */
-	static const int SIGWINCH = 28;	 /* Window size change */
-	static const int SIGIO = 29;	 /* I/O now possible */
-	static const int SIGPWR = 30;	 /* Power failure restart */
-	static const int SIGSYS = 31;	 /* invalid sys call */
+	// static const int SIGNUL = 0;	 /* No Signal Received */
+	// static const int SIGHUP = 1;	 /* Hangup (kill controlling terminal) */
+	// static const int SIGINT = 2;	 /* Interrupt from keyboard */
+	// static const int SIGQUIT = 3;	 /* Quit from keyboard */
+	// static const int SIGILL = 4;	 /* Illegal instrution */
+	// static const int SIGTRAP = 5;	 /* Trace trap */
+	// static const int SIGABRT = 6;	 /* use abort() API */
+	// static const int SIGBUS = 7;	 /* Bus error */
+	// static const int SIGFPE = 8;	 /* Floating point exception */
+	// static const int SIGKILL = 9;	 /* Kill(can't be caught or ignored) */
+	// static const int SIGUSR1 = 10;	 /* User defined signal 1 */
+	// static const int SIGSEGV = 11;	 /* Invalid memory segment access */
+	// static const int SIGUSR2 = 12;	 /* User defined signal 2 */
+	// static const int SIGPIPE = 13;	 /* Write on a pipe with no reader, Broken pipe */
+	// static const int SIGALRM = 14;	 /* Alarm clock */
+	// static const int SIGTERM = 15;	 /* Termination */
+	// static const int SIGSTKFLT = 16; /* Stack fault */
+	// static const int SIGCHLD = 17;	 /* Child process has stopped or exited, changed */
+	// static const int SIGCONT = 18;	 /* Continue executing, if stopped */
+	// static const int SIGSTOP = 19;	 /* Stop executing */
+	// static const int SIGTSTP = 20;	 /* Terminal stop signal */
+	// static const int SIGTTIN = 21;	 /* Background process trying to read, from TTY */
+	// static const int SIGTTOU = 22;	 /* Background process trying to write, to TTY */
+	// static const int SIGURG = 23;	 /* Urgent condition on socket */
+	// static const int SIGXCPU = 24;	 /* CPU limit exceeded */
+	// static const int SIGXFSZ = 25;	 /* File size limit exceeded */
+	// static const int SIGVTALRM = 26; /* Virtual alarm clock */
+	// static const int SIGPROF = 27;	 /* Profiling alarm clock */
+	// static const int SIGWINCH = 28;	 /* Window size change */
+	// static const int SIGIO = 29;	 /* I/O now possible */
+	// static const int SIGPWR = 30;	 /* Power failure restart */
+	// static const int SIGSYS = 31;	 /* invalid sys call */
 
 	unsigned long u_rsav[2]; /* 用于保存esp与ebp指针 */
 	unsigned long u_ssav[2]; /* 用于对esp和ebp指针的二次保护 */
@@ -137,7 +137,7 @@ public:
 	char u_curdir[128];					 /* 当前工作目录完整路径 */
 
 	ErrorCode u_error; /* 存放错误码 */
-	// int u_segflg;				/* 表明I/O针对用户或系统空间 */
+	int u_segflg;	   /* 表明I/O针对用户或系统空间 */
 
 	/* 进程的用户标识 */
 	short u_uid;  /* 有效用户ID */

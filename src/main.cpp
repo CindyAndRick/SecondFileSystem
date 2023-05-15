@@ -1,12 +1,23 @@
 #include <iostream>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
+#include <string>
 #include <string.h>
-#include <stdio.h>
-
 #include <sstream>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <strings.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+#include <signal.h>
+#define PORT 1235
+#define BACKLOG 128
 
 #include "../include/Kernel.h"
 
@@ -14,6 +25,11 @@ using std::cin;
 using std::cout;
 using std::endl;
 using std::string;
+
+void handle_pipe(int sig)
+{
+    // 不做任何处理即可
+}
 
 bool isNumber(const string &str)
 {
@@ -47,30 +63,98 @@ std::stringstream print_head()
     return send_str;
 }
 
-void start_routine()
+class sendU
 {
-    cout << print_head().str();
+private:
+    int fd;
+    string username;
 
-    string username = "test";
+public:
+    int send_(const stringstream &send_str)
+    {
+        // cout<<send_str.str()<<endl;
+        int numbytes = send(fd, send_str.str().c_str(), send_str.str().length(), 0);
+        cout << "[[ " << username << " ]] send " << numbytes << " bytes" << endl;
+        return numbytes;
+    };
+    sendU(int fd, string username)
+    {
+        this->fd = fd;
+        this->username = username;
+    };
+};
+
+void *start_routine(void *ptr)
+{
+    int fd = *(int *)ptr;
+    char buf[1024];
+    int numbytes;
+    numbytes = send(fd, "请输入用户名：", sizeof("请输入用户名："), 0);
+    cout << "[info] send函数返回值：" << numbytes << endl;
+
+    printf("进入用户线程，fd=%d\n", fd);
+
+    memset(buf, 0, sizeof(buf));
+    if ((numbytes = recv(fd, buf, 1024, 0)) == -1)
+    {
+        cout << ("recv() error\n");
+        return (void *)NULL;
+    }
+
+    string username = buf;
+    cout << "[info] 用户输入用户名：" << username << endl;
+
+    sendU sd(fd, username);
+    stringstream head = print_head();
+    sd.send_(head);
+
+    // 初始化用户User结构和目录
+    Kernel::Instance().GetUserManager().Login(username);
+
+    // string username = "test";
 
     string tipswords;
 
     while (true)
     {
         tipswords = "||SecondFileSystem@" + username + ":" + Kernel::Instance().GetUser().u_curdir + "$ ";
-        cout << tipswords;
-        string buf_recv;
+        // cout << tipswords;
+        // string buf_recv;
 
-        getline(cin, buf_recv);
+        // getline(cin, buf_recv);
+
+        char buf_recv[1024] = {0};
+
+        // 发送提示
+        numbytes = send(fd, tipswords.c_str(), tipswords.length(), 0);
+        if (numbytes <= 0)
+        {
+            cout << "[info] 用户 " << username << " 断开连接." << endl;
+            Kernel::Instance().GetUserManager().Logout();
+            return (void *)NULL;
+        }
+        printf("[INFO] send %d bytes\n", numbytes);
+
+        // 读取用户输入的命令行
+        if ((numbytes = recv(fd, buf_recv, 1024, 0)) == -1)
+        {
+            cout << "recv() error" << endl;
+            Kernel::Instance().GetUserManager().Logout();
+            return (void *)NULL;
+        }
 
         // 解析命令名称
         std::stringstream ss(buf_recv);
-        // cout<<"buf_recv : "<< buf_recv << endl;
+        cout << "buf_recv : " << buf_recv << endl;
         string api;
         ss >> api;
         std::stringstream send_str;
 
-        // cout<<"api : "<< api << endl;
+        cout << "api : " << api << endl;
+        if (api == "help")
+        {
+            sd.send_(head);
+        }
         if (api == "cd")
         {
             string param1;
@@ -78,7 +162,9 @@ void start_routine()
             if (param1 == "")
             {
                 send_str << "cd [fpath]";
-                send_str << "参数个数错误" << endl;
+                send_str << "参数个数错误" << endl
+                         << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -120,6 +206,8 @@ void start_routine()
                 }
             }
             Kernel::Instance().Sys_Close(fd);
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str() << endl;
             continue;
         }
@@ -147,6 +235,8 @@ void start_routine()
             {
                 send_str << "mkfile [filepath]";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -172,6 +262,8 @@ void start_routine()
             {
                 send_str << "rm [filepath]";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -194,12 +286,16 @@ void start_routine()
             {
                 send_str << "seek [fd] [position] [ptrname]";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
             if (!isNumber(fd))
             {
                 send_str << "[error] 参数fd错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -207,6 +303,8 @@ void start_routine()
             if (!isNumber(position))
             {
                 send_str << "[error] 参数position错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -214,6 +312,8 @@ void start_routine()
             if (!isNumber(ptrname))
             {
                 send_str << "[error] 参数ptrname错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -228,6 +328,8 @@ void start_routine()
             FileManager &fimanag = Kernel::Instance().GetFileManager();
             fimanag.Seek();
             send_str << "[result] u.u_ar0=" << u.u_ar0 << endl;
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str();
             continue;
         }
@@ -240,6 +342,8 @@ void start_routine()
             {
                 send_str << "open [fpath] [mode]\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -247,6 +351,8 @@ void start_routine()
             if (!isNumber(param2))
             {
                 send_str << "[error] 参数mode错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -265,6 +371,8 @@ void start_routine()
             FD fd = Kernel::Instance().Sys_Open(fpath, mode);
             // 打印结果
             send_str << "[result] fd=" << fd << endl;
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str();
             continue;
         }
@@ -277,18 +385,24 @@ void start_routine()
             {
                 send_str << "read [fd] [size]\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
             if (!isNumber(p1_fd))
             {
                 send_str << "[error] 参数fd错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
             if (!isNumber(p2_size))
             {
                 send_str << "[error] 参数size错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -296,6 +410,8 @@ void start_routine()
             if (fd < 0)
             {
                 send_str << "[error] 参数fd应当为正整数" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -303,6 +419,8 @@ void start_routine()
             if (size <= 0 || size > 1024)
             {
                 send_str << "[error] size 的取值范围是(0,1024]." << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -313,6 +431,8 @@ void start_routine()
             // 结果返回
             send_str << "[result] read " << ret << " letters" << endl
                      << buf << endl;
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str();
             continue;
         }
@@ -325,12 +445,16 @@ void start_routine()
             {
                 send_str << "write [fd] [content]\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
             if (!isNumber(p1_fd))
             {
                 send_str << "[error] 参数fd错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -338,12 +462,16 @@ void start_routine()
             if (fd < 0)
             {
                 send_str << "[error] 参数fd应当为正整数" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
             if (p2_content.length() > 1024)
             {
                 send_str << "[error] 内容content过长（不超过1024字节）" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -355,6 +483,8 @@ void start_routine()
             int ret = Kernel::Instance().Sys_Write(fd, size, 1024, buf);
             // 打印结果
             send_str << "[result] written " << ret << " letters" << endl;
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str();
             continue;
         }
@@ -366,12 +496,16 @@ void start_routine()
             {
                 send_str << "close [fd]\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
             if (!isNumber(p1_fd))
             {
                 send_str << "[error] 参数fd错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -379,6 +513,8 @@ void start_routine()
             if (fd < 0)
             {
                 send_str << "[error] 参数fd应当为正整数" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -395,6 +531,8 @@ void start_routine()
             {
                 send_str << "cat [fpath]\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -404,6 +542,8 @@ void start_routine()
             if (fd < 0)
             {
                 send_str << "[error] 打开文件出错." << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -421,6 +561,8 @@ void start_routine()
             }
             // Close
             Kernel::Instance().Sys_Close(fd);
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str() << endl;
             continue;
         }
@@ -434,6 +576,8 @@ void start_routine()
             {
                 send_str << "copyin ofpath ifpath\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -442,6 +586,8 @@ void start_routine()
             if (ofd < 0)
             {
                 send_str << "[error] 打开文件失败：" << p1_ofpath << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -452,6 +598,8 @@ void start_routine()
             {
                 close(ofd);
                 send_str << "[error] 打开文件失败：" << p2_ifpath << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -481,6 +629,8 @@ void start_routine()
                      << " 共写入字节：" << all_write_num << endl;
             close(ofd);
             Kernel::Instance().Sys_Close(ifd);
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str() << endl;
             continue;
         }
@@ -493,6 +643,8 @@ void start_routine()
             {
                 send_str << "copyout [ifpath] [ofpath]\n";
                 send_str << "参数个数错误" << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -501,6 +653,8 @@ void start_routine()
             if (ofd < 0)
             {
                 send_str << "[error] 创建文件失败：" << p2_ofpath << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -510,6 +664,8 @@ void start_routine()
             {
                 close(ofd);
                 send_str << "[error] 打开文件失败：" << p1_ifpath << endl;
+                send_str << endl;
+                sd.send_(send_str);
                 cout << send_str.str() << endl;
                 continue;
             }
@@ -539,6 +695,8 @@ void start_routine()
                      << " 共写入字节：" << all_write_num << endl;
             close(ofd);
             Kernel::Instance().Sys_Close(ifd);
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str() << endl;
             continue;
         }
@@ -546,15 +704,19 @@ void start_routine()
         {
             // Kernel::Instance().GetUserManager().Logout();
             send_str << "用户登出\n";
+            send_str << endl;
+            sd.send_(send_str);
             cout << send_str.str() << endl;
             break;
         }
-        if (api != "" && api != " ")
+        if (api != "" && api != " " && api != "info")
         {
             std::stringstream tishi;
             tishi = print_head();
             tishi << "\n"
-                  << "温馨提示：您的指令错误！\n";
+                  << "温馨提示：您的指令错误！\n"
+                  << endl;
+            sd.send_(tishi);
             cout << tishi.str() << endl;
         }
     }
@@ -562,31 +724,62 @@ void start_routine()
 
 int main(int argc, char const *argv[])
 {
+    // 进行信号处理
+    struct sigaction action;
+    action.sa_handler = handle_pipe;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+    sigaction(SIGPIPE, &action, NULL);
+
+    int listenfd, connectfd;
+    struct sockaddr_in server;
+    struct sockaddr_in client;
+    int sin_size;
+    sin_size = sizeof(struct sockaddr_in);
+
+    // 创建监听fd
+    if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+        perror("Creating socket failed.");
+        exit(1);
+    }
+
+    int opt = SO_REUSEADDR;
+    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); // 使得端口释放后立马被复用
+    bzero(&server, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(PORT);
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    // 绑定
+    if (bind(listenfd, (struct sockaddr *)&server, sizeof(struct sockaddr)) == -1)
+    {
+        perror("Bind error.");
+        exit(1);
+    }
+    // 监听
+    if (listen(listenfd, BACKLOG) == -1)
+    { /* calls listen() */
+        perror("listen() error\n");
+        exit(1);
+    }
+    // 初始化文件系统
     Kernel::Instance().Initialize();
-    // 1. 关联根目录
-    User &u = Kernel::Instance().GetUser();
-    u.u_cdir = g_InodeTable.IGet(FileSystem::ROOTINO);
-    strcpy(u.u_curdir, "/");
-    // 2. 尝试创建家目录
-    std::string bin = "bin";
-    Kernel::Instance().Sys_Mkdir(bin);
-    std::string etc = "etc";
-    Kernel::Instance().Sys_Mkdir(etc);
-    std::string home = "home";
-    Kernel::Instance().Sys_Mkdir(home);
-    std::string dev = "dev";
-    Kernel::Instance().Sys_Mkdir(dev);
-    // 3. 跳转
-    u.u_error = NOERROR;
-    // char dirname[512] = {0};
-    // strcpy(dirname, home.c_str());
-    // u.u_dirp = dirname;
-    // u.u_arg[0] = (unsigned long long)(dirname);
-    // printf("u.u_arg[0]:%llu\n", (unsigned long long)u.u_arg[0]);
-    FileManager &fimanag = Kernel::Instance().GetFileManager();
-    // fimanag.ChDir();
-    // printf("[info] 请登陆\n");
-    start_routine();
-    Kernel::Instance().Quit();
+    cout << "[info] 等待用户接入..." << endl;
+    // 进入通信循环
+    while (1)
+    {
+        // accept
+        if ((connectfd = accept(listenfd, (struct sockaddr *)&client, (socklen_t *)&sin_size)) == -1)
+        {
+            perror("accept() error\n");
+            continue;
+        }
+        printf("客户端接入：%s\n", inet_ntoa(client.sin_addr));
+        string str = "hello";
+        // send(connectfd,str.c_str(),6,0);
+        pthread_t thread; // 定义一个线程号
+        pthread_create(&thread, NULL, start_routine, (void *)&connectfd);
+    }
+    close(listenfd);
     return 0;
 }

@@ -1,4 +1,10 @@
 .vscode/
+obj/
+
+*.txt
+*.jpg
+*.img
+*.png
+
 SecondFileSystem
-list.txt
-test.jpg
+client/client

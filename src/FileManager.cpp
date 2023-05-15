@@ -1,6 +1,7 @@
-#include "FileManager.h"
-#include "Kernel.h"
-#include "User.h"
+#include "../include/FileManager.h"
+#include "../include/Kernel.h"
+#include "../include/User.h"
+
 #include <string.h>
 
 /*==========================class FileManager===============================*/
@@ -142,7 +143,7 @@ void FileManager::Open1(Inode *pInode, int mode, int trf)
 	 * 因此，进程必须上锁操作涉及的i节点。这就是NameI中执行的IGet上锁操作。
 	 * 行至此，后续不再有可能会引起进程切换的操作，可以解锁i节点。
 	 */
-	// pInode->Prele();
+	pInode->NFrele();
 
 	/* 分配打开文件控制块File结构 */
 	File *pFile = this->m_OpenFileTable->FAlloc();
@@ -186,13 +187,13 @@ void FileManager::Close()
 	File *pFile = u.u_ofiles.GetF(fd);
 	if (NULL == pFile)
 	{
+		u.u_ar0[User::EAX] = -1;
 		return;
 	}
 
 	/* 释放打开文件描述符fd，递减File结构引用计数 */
 	u.u_ofiles.SetF(fd, NULL);
 	this->m_OpenFileTable->CloseF(pFile);
-	// TODO 是否需要加
 	u.u_ar0[User::EAX] = 0;
 }
 
@@ -277,13 +278,13 @@ void FileManager::Rdwr(enum File::FileFlags mode)
 
 	u.u_IOParam.m_Base = (unsigned char *)u.u_arg[1]; /* 目标缓冲区首址，同时也是用户区起始地址buf */
 	u.u_IOParam.m_Count = u.u_arg[2];				  /* 要求读/写的字节数 */
-	// u.u_segflg = 0;									  /* User Space I/O，读入的内容要送数据段或用户栈段 */
+	u.u_segflg = 0;									  /* User Space I/O，读入的内容要送数据段或用户栈段 */
 
 	/* 普通文件读写 ，或读写特殊文件。对文件实施互斥访问，互斥的粒度：每次系统调用。
 	为此Inode类需要增加两个方法：NFlock()、NFrele()。
 	这不是V6的设计。read、write系统调用对内存i节点上锁是为了给实施IO的进程提供一致的文件视图。*/
 
-	// pFile->f_inode->NFlock();	/* inode上锁 */
+	pFile->f_inode->NFlock(); /* inode上锁 */
 	/* 设置文件起始读位置 */
 	u.u_IOParam.m_Offset = pFile->f_offset;
 	if (File::FREAD == mode)
@@ -297,7 +298,7 @@ void FileManager::Rdwr(enum File::FileFlags mode)
 
 	/* 根据读写字数，移动文件读写偏移指针 */
 	pFile->f_offset += (u.u_arg[2] - u.u_IOParam.m_Count);
-	// pFile->f_inode->NFrele();	/* 解锁inode */
+	pFile->f_inode->NFrele(); /* 解锁inode */
 
 	/* 返回实际读写的字节数，修改存放系统调用返回值的核心栈单元 */
 	u.u_ar0[User::EAX] = u.u_arg[2] - u.u_IOParam.m_Count;
@@ -593,7 +594,7 @@ void FileManager::WriteDir(Inode *pInode)
 
 	u.u_IOParam.m_Count = DirectoryEntry::DIRSIZ + 4;
 	u.u_IOParam.m_Base = (unsigned char *)&u.u_dent;
-	// u.u_segflg = 1;
+	u.u_segflg = 1;
 
 	/* 将目录项写入父目录文件 */
 	u.u_pdir->WriteI();
@@ -695,7 +696,7 @@ void FileManager::ChDir()
 	}
 	this->m_InodeTable->IPut(u.u_cdir);
 	u.u_cdir = pInode;
-	// pInode->NFrele();
+	pInode->NFrele();
 
 	// printf("FileManager::ChDir: u_arg[0]:%lld\n", u.u_arg[0]);
 	// char pathname[512] = {0};
@@ -733,6 +734,7 @@ void FileManager::Link()
 
 	/* 解锁现存文件Inode,以避免在以下搜索新文件时产生死锁 */
 	pInode->i_flag &= (~Inode::ILOCK);
+	pthread_mutex_unlock(&pInode->mutex);
 	/* 指向要创建的新路径newPathname */
 	u.u_dirp = (char *)u.u_arg[1];
 	pNewInode = this->NameI(FileManager::NextChar, FileManager::CREATE);
@@ -842,10 +844,10 @@ void FileManager::MkNod()
 		return;
 	}
 	/* 所建立是设备文件 */
-	if ((pInode->i_mode & (Inode::IFBLK | Inode::IFCHR)) != 0)
-	{
-		pInode->i_addr[0] = u.u_arg[2];
-	}
+	// if ((pInode->i_mode & (Inode::IFBLK | Inode::IFCHR)) != 0)
+	// {
+	// 	pInode->i_addr[0] = u.u_arg[2];
+	// }
 	this->m_InodeTable->IPut(pInode);
 }
 /*==========================class DirectoryEntry===============================*/

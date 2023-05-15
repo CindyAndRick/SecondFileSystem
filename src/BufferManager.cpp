@@ -34,6 +34,8 @@ void BufferManager::Initialize()
 		this->bFreeList.b_forw->b_back = bp;
 		this->bFreeList.b_forw = bp;
 		/* 初始化自由队列 */
+		pthread_mutex_init(&bp->buf_lock, NULL);
+		pthread_mutex_lock(&bp->buf_lock);
 		bp->b_flags = Buf::B_BUSY;
 		Brelse(bp);
 	}
@@ -45,13 +47,13 @@ Buf *BufferManager::GetBlk(int blkno)
 {
 	Buf *headbp = &(this->bFreeList);
 	Buf *bp;
-	// 课设为单进程，但设备，无需考虑B_BUSY情况
-	// 但在此保留双队列与B_BUSY，以便后续扩展
+	// 查看bFreeList中是否已经有该块的缓存, 有就返回
 	for (bp = headbp->b_forw; bp != headbp; bp = bp->b_forw)
 	{
 		if (bp->b_blkno != blkno)
 			continue;
 		bp->b_flags |= Buf::B_BUSY;
+		pthread_mutex_lock(&bp->buf_lock);
 		return bp;
 	}
 
@@ -59,16 +61,26 @@ Buf *BufferManager::GetBlk(int blkno)
 	int success = false;
 	for (bp = headbp->b_forw; bp != headbp; bp = bp->b_forw)
 	{
-		if (bp->b_flags & Buf::B_BUSY)
-			continue;
-		bp->b_flags |= Buf::B_BUSY;
-		success = true;
-		break;
+		// 检查该buf是否上锁
+		if (pthread_mutex_trylock(&bp->buf_lock) == 0)
+		{
+			success = true;
+			break;
+		}
+		printf("[debug] buf已被锁，blkno=%d b_addr=%p\n", bp->b_blkno, bp->b_addr);
+	}
+	if (success == false)
+	{
+		bp = headbp->b_forw;
+		printf("[INFO]系统缓存已用完，等待队首缓存解锁...\n");
+		pthread_mutex_lock(&bp->buf_lock); // 等待第一个缓存块解锁。
+		printf("[INFO]系统成功得到队首缓存块...\n");
 	}
 	if (bp->b_flags & Buf::B_DELWRI)
 	{
 		// 理应延迟写，但这里无需考虑上锁等操作，故直接写
 		this->Bwrite(bp);
+		pthread_mutex_lock(&bp->buf_lock); // 马上上锁
 	}
 
 	// 已写回，清空其他标志
@@ -95,7 +107,7 @@ void BufferManager::Brelse(Buf *bp)
 	 * B_DONE则是指该缓存的内容正确地反映了存储在或应存储在磁盘上的信息
 	 */
 	bp->b_flags &= ~(Buf::B_WANTED | Buf::B_BUSY | Buf::B_ASYNC);
-
+	pthread_mutex_unlock(&bp->buf_lock);
 	return;
 }
 
@@ -194,6 +206,17 @@ void BufferManager::Bflush()
 			// printf("can bwrite\n");
 			this->Bwrite(bp);
 		}
+	}
+	return;
+}
+
+void BufferManager::GetError(Buf *bp)
+{
+	User &u = Kernel::Instance().GetUser();
+
+	if (bp->b_flags & Buf::B_ERROR)
+	{
+		u.u_error = EIO;
 	}
 	return;
 }

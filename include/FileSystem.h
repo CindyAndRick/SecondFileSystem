@@ -1,6 +1,8 @@
 #ifndef FILE_SYSTEM_H
 #define FILE_SYSTEM_H
 
+#include <pthread.h>
+
 #include "INode.h"
 #include "Buf.h"
 #include "BufferManager.h"
@@ -28,13 +30,13 @@ public:
 	int s_ninode;	  /* 直接管理的空闲外存Inode数量 */
 	int s_inode[100]; /* 直接管理的空闲外存Inode索引表 */
 
-	int s_flock; /* 封锁空闲盘块索引表标志 */
-	int s_ilock; /* 封锁空闲Inode表标志 */
+	pthread_mutex_t s_flock; /* 封锁空闲盘块索引表标志 */
+	pthread_mutex_t s_ilock; /* 封锁空闲Inode表标志 */
 
 	int s_fmod;		 /* 内存中super block副本被修改标志，意味着需要更新外存对应的Super Block */
 	int s_ronly;	 /* 本文件系统只能读出 */
 	int s_time;		 /* 最近一次更新时间 */
-	int padding[47]; /* 填充使SuperBlock块大小等于1024字节，占据2个扇区 */
+	int padding[29]; //[47]; /* 填充使SuperBlock块大小等于1024字节，占据2个扇区 */
 };
 
 // /*
