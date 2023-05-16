@@ -46,7 +46,7 @@ std::stringstream print_head()
     std::stringstream send_str;
     send_str << "===============================================" << endl;
     send_str << "||请在一行中依次输入需要调用的函数名称及其参数||" << endl;
-    send_str << "||open(char *name, int mode)                 ||" << endl;
+    send_str << "||open(char *name, int mode=0777)            ||" << endl;
     send_str << "||close(int fd)                              ||" << endl;
     send_str << "||read(int fd, int length)                   ||" << endl;
     send_str << "||write(int fd, char *buffer, int length)    ||" << endl;
@@ -59,6 +59,7 @@ std::stringstream print_head()
     send_str << "||cat(char* dirname)                         ||" << endl;
     send_str << "||copyin(char* ofpath, char *  ifpath)       ||" << endl;
     send_str << "||copyout(char* ifpath, char *  ofpath)      ||" << endl;
+    send_str << "||help()                                     ||" << endl;
     send_str << "||q/Q 退出文件系统                           ||" << endl;
     return send_str;
 }
