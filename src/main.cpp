@@ -764,6 +764,14 @@ int main(int argc, char const *argv[])
     }
     // 初始化文件系统
     Kernel::Instance().Initialize();
+    string etc = "etc";
+    Kernel::Instance().Sys_Mkdir(etc);
+    string bin = "bin";
+    Kernel::Instance().Sys_Mkdir(bin);
+    string home = "home";
+    Kernel::Instance().Sys_Mkdir(home);
+    string dev = "dev";
+    Kernel::Instance().Sys_Mkdir(dev);
     cout << "[info] 等待用户接入..." << endl;
     // 进入通信循环
     while (1)

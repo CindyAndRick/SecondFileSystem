@@ -5,6 +5,7 @@ obj/
 *.jpg
 *.img
 *.png
+*.py
 
 SecondFileSystem
 client/client

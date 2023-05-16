@@ -65,16 +65,25 @@ bool UserManager::Login(string uname)
     pusers[i]->u_cdir = g_InodeTable.IGet(FileSystem::ROOTINO);
     pusers[i]->u_cdir->NFrele();
     strcpy(pusers[i]->u_curdir, "/");
+    // 2. 转到home目录
+    pusers[i]->u_error = NOERROR;
+    char dirname1[512] = {0};
+    string tmp = "/home";
+    strcpy(dirname1, tmp.c_str());
+    pusers[i]->u_dirp = dirname1;
+    pusers[i]->u_arg[0] = (unsigned long long)(dirname1);
+    FileManager &fimanag = Kernel::Instance().GetFileManager();
+    fimanag.ChDir();
     // 2. 尝试创建家目录
     Kernel::Instance().Sys_Mkdir(uname);
     printf("[info] home dic created\n");
     // 3. 转到家目录
     pusers[i]->u_error = NOERROR;
-    char dirname[512] = {0};
-    strcpy(dirname, uname.c_str());
-    pusers[i]->u_dirp = dirname;
-    pusers[i]->u_arg[0] = (unsigned long long)(dirname);
-    FileManager &fimanag = Kernel::Instance().GetFileManager();
+    char dirname2[512] = {0};
+    tmp = "/home/" + uname;
+    strcpy(dirname2, tmp.c_str());
+    pusers[i]->u_dirp = dirname2;
+    pusers[i]->u_arg[0] = (unsigned long long)(dirname2);
     fimanag.ChDir();
     return true;
 }
