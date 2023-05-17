@@ -33,3 +33,7 @@
 12. `copyin [ofpath] [ifpath]` 将二级文件系统外`ofpath`路径的文件复制到系统内`ifpath`处
 13. `copyout [ifpath] [ofpath]` 将二级文件系统内`ifpath`处路径复制到系统外`ofpath`处
 14. `help` 查看提示信息
+
+代码参考
+
+https://github.com/fffqh/MultiUser-secondFileSystem
