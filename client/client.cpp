@@ -41,6 +41,10 @@ void running(int fd)
             if(numbytes > 0){
                 //printf("[INFO] revc %d bytes\n", numbytes);
                 receiveM[numbytes] = 0;
+                if (strcmp(receiveM, "[info] 用户名或密码错误，登录失败.") == 0){
+                    printf("[ERROR] 用户名或密码错误，登录失败.\n");
+                    return;
+                }
                 printf("%s", receiveM);
                 if(!first_recv)
                     first_recv = 1;
@@ -69,7 +73,7 @@ void running(int fd)
 int main(int argc, char **argv)
 {
     if (argc < 3){
-        printf("please input ip and port, for example ./main 120.12.34.56 80.\n");
+        printf("please input ip and port, for example ./client 127.0.0.0 1235.\n");
         return -1;
     }
     char *ipaddr = argv[1];

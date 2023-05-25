@@ -9,6 +9,7 @@ typedef int ErrorCode;
 #include <iostream>
 #include <string.h>
 #include <map>
+#include <fstream>
 using namespace std;
 
 class UserManager
@@ -23,6 +24,8 @@ public:
     bool Logout();
     // 得到当前线程的User结构
     User *GetUser();
+    // 校验密码
+    bool CheckUser(string username, string passwd);
 
 public:
     // 一个动态的索引表
