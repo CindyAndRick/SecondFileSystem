@@ -119,3 +119,39 @@ User *UserManager::GetUser()
     }
     return pusers[user_addr[pthread_id]];
 }
+
+bool UserManager::CheckUser(string username, string passwd)
+{
+    ifstream file("password.txt");
+    bool found = false;
+    string correct_passwd;
+    if(file.is_open()){
+        string line;
+        while (getline(file, line)) {
+            size_t pos = line.find(":");
+            if (pos != string::npos) {
+                string name = line.substr(0, pos);
+                if (name == username) {
+                    correct_passwd = line.substr(pos + 1);
+                    found = true;
+                    break;
+                }
+            }
+        }
+        file.close();
+    }
+    else{
+        cout << "[error] Unable to open password.txt file" << endl;
+    }
+    if(found){
+        if (correct_passwd == passwd) {
+            return true;
+        }
+        else{
+            return false;
+        }
+    }
+    else{
+        return false;
+    }
+}

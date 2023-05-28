@@ -105,14 +105,35 @@ void *start_routine(void *ptr)
     string username = buf;
     cout << "[info] 用户输入用户名：" << username << endl;
 
+    // 读取密码
+    memset(buf, 0, sizeof(buf));
+    numbytes = recv(fd, buf, 1024, 0);
+    if (numbytes == -1)
+    {
+        cout << ("recv() error\n");
+        return (void *)NULL;
+    }
+    string password = buf;
+    cout << "[info] 用户输入密码：" << password << endl;
+
+    // 验证用户名和密码
+    if (Kernel::Instance().GetUserManager().CheckUser(username, password) == false)
+    {
+        cout << "[info] 用户 " << username << " 登录失败." << endl;
+        send(fd, "[info] 用户名或密码错误，登录失败.", sizeof("[info] 用户名或密码错误，登录失败."), 0);
+        return (void *)NULL;
+    }
+    cout << "[info] 用户 " << username << " 登录成功." << endl;
+
     sendU sd(fd, username);
+    stringstream greeting;
+    greeting << "[info] 登录成功，欢迎使用Rick's SecondFileSystem，" << username << "!" << endl;
+    sd.send_(greeting);
     stringstream head = print_head();
     sd.send_(head);
 
     // 初始化用户User结构和目录
     Kernel::Instance().GetUserManager().Login(username);
-
-    // string username = "test";
 
     string tipswords;
 
